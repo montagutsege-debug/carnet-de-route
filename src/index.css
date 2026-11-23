@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Fraunces", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-serif);
+    text-wrap: balance;
+  }
+}
+
+/* Subtle lined-paper texture for journal prose areas */
+.notebook-lines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 31px,
+    rgba(28, 31, 34, 0.07) 31px,
+    rgba(28, 31, 34, 0.07) 32px
+  );
+  line-height: 32px;
+  background-attachment: local;
+}
+
+/* Central spine shadow for the open double-page spread on desktop */
+@media (min-width: 1024px) {
+  .spread-page-left {
+    box-shadow: inset -18px 0 24px -18px rgba(28, 31, 34, 0.14);
+  }
+  .spread-page-right {
+    box-shadow: inset 18px 0 24px -18px rgba(28, 31, 34, 0.12);
+  }
+}
+
+/* Clean print layout for printing an individual double-page fiche or checklist */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-spread {
+    box-shadow: none !important;
+    border: 1px solid #d4d4d0 !important;
+    break-inside: avoid;
+  }
+}

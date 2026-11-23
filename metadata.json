@@ -1,0 +1,6 @@
+{
+  "name": "Carnet de Route",
+  "description": "Carnet de voyage à compléter avec 50 fiches doubles pour décrire vos aires de camping, vos visites, vos rencontres et votre check-liste de départ.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
