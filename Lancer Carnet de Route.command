@@ -46,19 +46,9 @@ if [ ! -f .env.local ]; then
   fi
 fi
 
-# 4. Ouvre le navigateur dès que l'application est prête
-(
-  for _ in $(seq 1 60); do
-    if curl -s -o /dev/null http://localhost:3000; then
-      open http://localhost:3000
-      exit 0
-    fi
-    sleep 1
-  done
-) &
-
+# 4. Démarre l'application ; le navigateur s'ouvre tout seul sur la bonne adresse
 echo ""
-echo "L'application démarre sur http://localhost:3000"
+echo "Démarrage... le navigateur va s'ouvrir automatiquement."
 echo "Laissez cette fenêtre ouverte pendant l'utilisation. Fermez-la pour arrêter l'application."
 echo ""
-npm run dev
+OPEN_BROWSER=1 npm run dev

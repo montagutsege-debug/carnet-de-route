@@ -19,7 +19,7 @@ Prérequis : Node.js 20 ou plus.
 ```bash
 npm install
 cp .env.example .env.local   # puis renseigner les clés
-npm run dev                  # http://localhost:3000
+npm run dev                  # http://127.0.0.1:5180
 ```
 
 ## Configuration (`.env.local`)
