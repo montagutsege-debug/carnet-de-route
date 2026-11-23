@@ -4,7 +4,15 @@ Carnet de voyage à compléter : 50 fiches doubles (aire de camping et étape à
 
 Stack : React 19, Vite 8, Tailwind CSS 4, Leaflet, serveur Express (`server.ts`).
 
-## Lancer en local
+## Sur Mac (iMac, MacBook)
+
+1. Installez Node.js (version « LTS », fichier .pkg) depuis https://nodejs.org/fr/download.
+2. Téléchargez le projet : bouton vert **Code → Download ZIP** sur GitHub, puis double-cliquez sur le zip.
+3. Dans le dossier, double-cliquez sur **Lancer Carnet de Route.command**.
+   La première fois, macOS peut le bloquer : faites clic droit → **Ouvrir** → **Ouvrir**.
+4. L'application s'ouvre dans votre navigateur. Gardez la fenêtre du Terminal ouverte pendant l'utilisation.
+
+## Lancer en local (ligne de commande)
 
 Prérequis : Node.js 20 ou plus.
 
