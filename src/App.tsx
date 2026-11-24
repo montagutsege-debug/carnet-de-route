@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppTab,
   CarnetData,
@@ -16,6 +16,8 @@ import {
   exportCarnetJson,
   isFicheFilled,
   loadCarnet,
+  normalizeCarnet,
+  requestPersistentStorage,
   saveCarnet,
 } from './utils/storage';
 import { Header } from './components/Header';
@@ -26,17 +28,105 @@ import { ChecklistView } from './components/ChecklistView';
 import { RencontresView } from './components/RencontresView';
 
 export default function App() {
-  const [carnet, setCarnet] = useState<CarnetData>(() => loadCarnet());
+  const [initialCarnet, setInitialCarnet] = useState<CarnetData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadCarnet().then((data) => {
+      if (!cancelled) setInitialCarnet(data);
+    });
+    requestPersistentStorage();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!initialCarnet) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F3F2ED] text-sm text-[#5C6268]">
+        Ouverture du carnet…
+      </div>
+    );
+  }
+
+  return <CarnetApp initialCarnet={initialCarnet} />;
+}
+
+const SAVE_DELAY_MS = 400;
+
+/**
+ * Saves the carnet shortly after each change (grouping fast typing into one
+ * write), never runs two writes at once, and flushes when the page is hidden.
+ */
+function useCarnetAutosave(carnet: CarnetData) {
+  const [saveError, setSaveError] = useState(false);
+  const pendingRef = useRef<CarnetData | null>(null);
+  const writingRef = useRef(false);
+  const timerRef = useRef<number | null>(null);
+  const firstRenderRef = useRef(true);
+
+  const flush = useCallback(async () => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (writingRef.current) return;
+    writingRef.current = true;
+    try {
+      while (pendingRef.current) {
+        const data = pendingRef.current;
+        pendingRef.current = null;
+        try {
+          await saveCarnet(data);
+          setSaveError(false);
+        } catch (err) {
+          console.error('Enregistrement du carnet impossible :', err);
+          setSaveError(true);
+        }
+      }
+    } finally {
+      writingRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    // The carnet that was just loaded does not need saving again.
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+    pendingRef.current = carnet;
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => void flush(), SAVE_DELAY_MS);
+  }, [carnet, flush]);
+
+  useEffect(() => {
+    const onHide = () => {
+      if (pendingRef.current) void flush();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') onHide();
+    };
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [flush]);
+
+  return saveError;
+}
+
+function CarnetApp({ initialCarnet }: { initialCarnet: CarnetData }) {
+  const [carnet, setCarnet] = useState<CarnetData>(initialCarnet);
+  const saveError = useCarnetAutosave(carnet);
   const [activeTab, setActiveTab] = useState<AppTab>('sommaire');
   const [selectedFicheNum, setSelectedFicheNum] = useState<number>(1);
   const [importMessage, setImportMessage] = useState<{
     type: 'success' | 'error';
     text: string;
   } | null>(null);
-  useEffect(() => {
-    saveCarnet(carnet);
-  }, [carnet]);
-
   const activeFiche =
     carnet.fiches.find((f) => f.numero === selectedFicheNum) || carnet.fiches[0];
 
@@ -127,33 +217,13 @@ export default function App() {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result)) as Partial<CarnetData>;
-        if (!parsed || !Array.isArray(parsed.fiches) || !Array.isArray(parsed.checklist)) {
+        const normalized = normalizeCarnet(parsed);
+        if (!normalized) {
           throw new Error('Structure invalide');
         }
-        const normalizedFiches: FicheDouble[] = Array.from({ length: 50 }, (_, idx) => {
-          const existing = parsed.fiches?.find((f) => f && f.numero === idx + 1);
-          if (!existing) return createBlankFiche(idx + 1);
-          return {
-            ...createBlankFiche(idx + 1),
-            ...existing,
-            numero: idx + 1,
-            services: {
-              ...createBlankFiche(idx + 1).services,
-              ...(existing.services || {}),
-            },
-            visites: Array.isArray(existing.visites) ? existing.visites : [],
-            rencontres: Array.isArray(existing.rencontres) ? existing.rencontres : [],
-          };
-        });
-
         setCarnet((prev) => ({
-          version: 1,
-          profile: {
-            ...prev.profile,
-            ...(parsed.profile || {}),
-          },
-          fiches: normalizedFiches,
-          checklist: parsed.checklist!,
+          ...normalized,
+          profile: { ...prev.profile, ...(parsed.profile || {}) },
         }));
         setImportMessage({
           type: 'success',
@@ -171,6 +241,23 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F3F2ED] text-[#1C1F22]">
+      {saveError && (
+        <div
+          role="alert"
+          className="no-print bg-red-50 border-b border-red-200 text-red-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm"
+        >
+          Attention : vos dernières modifications n’ont pas pu être enregistrées (espace disque
+          du navigateur plein ?). Téléchargez une sauvegarde pour ne rien perdre :{' '}
+          <button
+            type="button"
+            onClick={handleExportJson}
+            className="underline font-semibold cursor-pointer"
+          >
+            Sauvegarder (.json)
+          </button>
+        </div>
+      )}
+
       <Header
         titreCarnet={carnet.profile.titreCarnet}
         activeTab={activeTab}

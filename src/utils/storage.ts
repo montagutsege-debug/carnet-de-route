@@ -42,51 +42,152 @@ export function padFicheNumber(num: number): string {
   return String(num).padStart(2, '0');
 }
 
-export function loadCarnet(): CarnetData {
+/** Fills any missing fields so data saved by older versions still loads. */
+export function normalizeCarnet(parsed: Partial<CarnetData> | null | undefined): CarnetData | null {
+  if (!parsed || !Array.isArray(parsed.fiches) || !Array.isArray(parsed.checklist)) {
+    return null;
+  }
+  const base = createInitialCarnet();
+  const normalizedFiches: FicheDouble[] = Array.from({ length: 50 }, (_, idx) => {
+    const existing = parsed.fiches?.find((f) => f && f.numero === idx + 1);
+    if (!existing) return createBlankFiche(idx + 1);
+    return {
+      ...createBlankFiche(idx + 1),
+      ...existing,
+      numero: idx + 1,
+      services: {
+        ...createBlankFiche(idx + 1).services,
+        ...(existing.services || {}),
+      },
+      visites: Array.isArray(existing.visites) ? existing.visites : [],
+      rencontres: Array.isArray(existing.rencontres) ? existing.rencontres : [],
+    };
+  });
+
+  return {
+    version: 1,
+    profile: {
+      ...base.profile,
+      ...(parsed.profile || {}),
+    },
+    fiches: normalizedFiches,
+    checklist: parsed.checklist,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// IndexedDB storage: hundreds of MB available, versus ~5 MB for localStorage,
+// which photos would fill after about fifteen fiches.
+// ---------------------------------------------------------------------------
+
+const DB_NAME = 'carnet-de-route';
+const DB_STORE = 'data';
+const DB_KEY = 'carnet';
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function openDb(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB indisponible'));
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(DB_STORE)) {
+        request.result.createObjectStore(DB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error('Ouverture IndexedDB impossible'));
+    request.onblocked = () => reject(new Error('IndexedDB bloquée par un autre onglet'));
+  });
+  // Allow a retry on the next call if opening failed.
+  dbPromise.catch(() => {
+    dbPromise = null;
+  });
+  return dbPromise;
+}
+
+async function idbGet<T>(key: string): Promise<T | undefined> {
+  const db = await openDb();
+  return new Promise<T | undefined>((resolve, reject) => {
+    const request = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(key);
+    request.onsuccess = () => resolve(request.result as T | undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbPut(key: string, value: unknown): Promise<void> {
+  const db = await openDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('Écriture impossible'));
+    tx.onabort = () => reject(tx.error ?? new Error('Écriture annulée (espace disque insuffisant ?)'));
+  });
+}
+
+function readLegacyLocalStorage(): CarnetData | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return createInitialCarnet();
-    const parsed = JSON.parse(raw) as Partial<CarnetData>;
-    if (!parsed || !Array.isArray(parsed.fiches) || !Array.isArray(parsed.checklist)) {
-      return createInitialCarnet();
-    }
-    const base = createInitialCarnet();
-    const normalizedFiches: FicheDouble[] = Array.from({ length: 50 }, (_, idx) => {
-      const existing = parsed.fiches?.find((f) => f && f.numero === idx + 1);
-      if (!existing) return createBlankFiche(idx + 1);
-      return {
-        ...createBlankFiche(idx + 1),
-        ...existing,
-        numero: idx + 1,
-        services: {
-          ...createBlankFiche(idx + 1).services,
-          ...(existing.services || {}),
-        },
-        visites: Array.isArray(existing.visites) ? existing.visites : [],
-        rencontres: Array.isArray(existing.rencontres) ? existing.rencontres : [],
-      };
-    });
-
-    return {
-      version: 1,
-      profile: {
-        ...base.profile,
-        ...(parsed.profile || {}),
-      },
-      fiches: normalizedFiches,
-      checklist: parsed.checklist,
-    };
+    if (!raw) return null;
+    return normalizeCarnet(JSON.parse(raw) as Partial<CarnetData>);
   } catch {
-    return createInitialCarnet();
+    return null;
   }
 }
 
-export function saveCarnet(data: CarnetData): boolean {
+/**
+ * Loads the carnet from IndexedDB. On first launch after the update, moves the
+ * data saved by the previous version (localStorage) into IndexedDB.
+ */
+export async function loadCarnet(): Promise<CarnetData> {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    return true;
+    const stored = normalizeCarnet(await idbGet<Partial<CarnetData>>(DB_KEY));
+    if (stored) return stored;
+
+    const legacy = readLegacyLocalStorage();
+    if (legacy) {
+      await idbPut(DB_KEY, legacy);
+      // Only drop the old copy once it is safely in IndexedDB.
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+      return legacy;
+    }
+    return createInitialCarnet();
   } catch {
-    return false;
+    // IndexedDB unavailable (very old browser, some private modes): fall back.
+    return readLegacyLocalStorage() ?? createInitialCarnet();
+  }
+}
+
+/** Saves the carnet. Rejects if the data could not be written. */
+export async function saveCarnet(data: CarnetData): Promise<void> {
+  try {
+    await idbPut(DB_KEY, data);
+  } catch (idbError) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      throw idbError;
+    }
+  }
+}
+
+/** Asks the browser not to clear the carnet when disk space runs low. */
+export async function requestPersistentStorage(): Promise<void> {
+  try {
+    if (navigator.storage?.persist && !(await navigator.storage.persisted())) {
+      await navigator.storage.persist();
+    }
+  } catch {
+    /* not supported: nothing to do */
   }
 }
 
