@@ -66,6 +66,12 @@ export interface SuggestionsAlentours {
   generatedAt: string;
 }
 
+export interface PhotoFiche {
+  id: string;
+  url: string;
+  legende: string;
+}
+
 export interface FicheDouble {
   numero: number; // 1 to 50
   // Page de gauche — L'aire de camping & l'étape
@@ -84,6 +90,9 @@ export interface FicheDouble {
   coupDeCoeur: boolean;
   services: ServicesAire;
   descriptionAire: string;
+  /** Photos of the stage; the first one is the main photo. */
+  photos: PhotoFiche[];
+  /** Mirror of photos[0], kept for older saves and simple displays. */
   photoUrl: string;
   photoLegende: string;
   // Page de droite — Visites effectuées & Nouvelles personnes
@@ -125,4 +134,12 @@ export interface CarnetData {
   checklist: ChecklistItem[];
 }
 
-export type AppTab = 'sommaire' | 'fiche' | 'carte' | 'checklist' | 'rencontres';
+export type AppTab =
+  | 'sommaire'
+  | 'fiche'
+  | 'carte'
+  | 'checklist'
+  | 'rencontres'
+  | 'bilan'
+  | 'export'
+  | 'carnets';

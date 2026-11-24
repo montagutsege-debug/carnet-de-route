@@ -1,5 +1,6 @@
 import {
   CarnetData,
+  CarnetProfile,
   ChecklistCategoryId,
   ChecklistItem,
   FicheDouble,
@@ -107,6 +108,7 @@ export function createBlankFiche(numero: number): FicheDouble {
     coupDeCoeur: false,
     services: { ...DEFAULT_SERVICES },
     descriptionAire: '',
+    photos: [],
     photoUrl: '',
     photoLegende: '',
     visites: [],
@@ -213,6 +215,13 @@ export function createInitialCarnet(): CarnetData {
     },
     descriptionAire:
       'Emplacements spacieux sur gravier stabilisé face à la lande bretonne. Prévoir les cales sur les places les plus hautes. Coucher de soleil remarquable derrière le phare de la Vieille, silence absolu dès 21 h.',
+    photos: [
+      {
+        id: 'p-1-1',
+        url: BRETAGNE_IMAGE_PATH,
+        legende: 'Fin d’après-midi face aux falaises de granit et à la bruyère en fleur.',
+      },
+    ],
     photoUrl: BRETAGNE_IMAGE_PATH,
     photoLegende: 'Fin d’après-midi face aux falaises de granit et à la bruyère en fleur.',
     visites: [
@@ -279,6 +288,13 @@ export function createInitialCarnet(): CarnetData {
     },
     descriptionAire:
       'Emplacements en terrasse sous les grands pins maritimes avec vue plongeante sur la vallée. Accueil familial, dépôt de pain frais le matin à 7 h 45. Accès facile pour véhicules jusqu’à 7,5 m.',
+    photos: [
+      {
+        id: 'p-2-1',
+        url: VERDON_IMAGE_PATH,
+        legende: 'Matinée fraîche sous les pins avant la descente vers le Verdon.',
+      },
+    ],
     photoUrl: VERDON_IMAGE_PATH,
     photoLegende: 'Matinée fraîche sous les pins avant la descente vers le Verdon.',
     visites: [
@@ -323,7 +339,48 @@ export function createInitialCarnet(): CarnetData {
       vehicule: 'Fourgon aménagé',
       saison: 'Saison 2026',
     },
-    fiches,
+    fiches: fiches.map(withPhotos),
     checklist: createInitialChecklist(),
+  };
+}
+
+export const MAX_PHOTOS_PAR_FICHE = 8;
+
+/**
+ * Makes sure a fiche has a `photos` list (saves from older versions only had
+ * photoUrl) and that photoUrl/photoLegende mirror the main photo.
+ */
+export function withPhotos(fiche: FicheDouble): FicheDouble {
+  const photos = Array.isArray(fiche.photos)
+    ? fiche.photos.filter((p) => p && typeof p.url === 'string' && p.url)
+    : fiche.photoUrl
+      ? [{ id: `p-${fiche.numero}-1`, url: fiche.photoUrl, legende: fiche.photoLegende || '' }]
+      : [];
+  return {
+    ...fiche,
+    photos,
+    photoUrl: photos[0]?.url ?? '',
+    photoLegende: photos[0]?.legende ?? '',
+  };
+}
+
+/** A new, empty carnet for another trip: blank fiches, unchecked check-list. */
+export function createEmptyCarnet(
+  titre: string,
+  options: { profile?: Partial<CarnetProfile>; checklist?: ChecklistItem[] } = {}
+): CarnetData {
+  const checklist = (options.checklist?.length ? options.checklist : createInitialChecklist()).map(
+    (item) => ({ ...item, checked: false })
+  );
+  return {
+    version: 1,
+    profile: {
+      titreCarnet: titre,
+      equipage: options.profile?.equipage || 'Notre équipage',
+      vehicule: options.profile?.vehicule || 'Fourgon aménagé',
+      saison: `Saison ${new Date().getFullYear()}`,
+    },
+    fiches: Array.from({ length: 50 }, (_, index) => createBlankFiche(index + 1)),
+    checklist,
   };
 }
