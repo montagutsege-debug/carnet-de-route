@@ -66,6 +66,8 @@ export function normalizeCarnet(parsed: Partial<CarnetData> | null | undefined):
       },
       visites: Array.isArray(existing.visites) ? existing.visites : [],
       rencontres: Array.isArray(existing.rencontres) ? existing.rencontres : [],
+      // Older saves have no photo list: let withPhotos build it from photoUrl.
+      photos: existing.photos as FicheDouble['photos'],
     });
   });
 
@@ -87,7 +89,6 @@ export function normalizeCarnet(parsed: Partial<CarnetData> | null | undefined):
 
 const DB_NAME = 'carnet-de-route';
 const DB_STORE = 'data';
-const DB_KEY = 'carnet';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 

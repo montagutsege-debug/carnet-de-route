@@ -15,8 +15,9 @@ import { createBlankFiche } from './data/initialCarnet';
 import {
   exportCarnetJson,
   isFicheFilled,
-  loadCarnet,
   normalizeCarnet,
+  openActiveCarnet,
+  openCarnet,
   requestPersistentStorage,
   saveCarnet,
 } from './utils/storage';
@@ -26,14 +27,18 @@ import { FicheDoubleView } from './components/FicheDoubleView';
 import { CarteView } from './components/CarteView';
 import { ChecklistView } from './components/ChecklistView';
 import { RencontresView } from './components/RencontresView';
+import { BilanView } from './components/BilanView';
+import { ExportView } from './components/ExportView';
+import { CarnetsView } from './components/CarnetsView';
 
 export default function App() {
-  const [initialCarnet, setInitialCarnet] = useState<CarnetData | null>(null);
+  const [opened, setOpened] = useState<{ id: string; data: CarnetData } | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    loadCarnet().then((data) => {
-      if (!cancelled) setInitialCarnet(data);
+    openActiveCarnet().then((result) => {
+      if (!cancelled) setOpened(result);
     });
     requestPersistentStorage();
     return () => {
@@ -41,7 +46,18 @@ export default function App() {
     };
   }, []);
 
-  if (!initialCarnet) {
+  const handleSwitchCarnet = useCallback(async (id: string) => {
+    setOpenError(null);
+    try {
+      const data = await openCarnet(id);
+      setOpened({ id, data });
+      window.scrollTo({ top: 0 });
+    } catch {
+      setOpenError('Impossible d’ouvrir ce carnet.');
+    }
+  }, []);
+
+  if (!opened) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F3F2ED] text-sm text-[#5C6268]">
         Ouverture du carnet…
@@ -49,7 +65,15 @@ export default function App() {
     );
   }
 
-  return <CarnetApp initialCarnet={initialCarnet} />;
+  return (
+    <CarnetApp
+      key={opened.id}
+      carnetId={opened.id}
+      initialCarnet={opened.data}
+      onSwitchCarnet={handleSwitchCarnet}
+      switchError={openError}
+    />
+  );
 }
 
 const SAVE_DELAY_MS = 400;
@@ -58,7 +82,7 @@ const SAVE_DELAY_MS = 400;
  * Saves the carnet shortly after each change (grouping fast typing into one
  * write), never runs two writes at once, and flushes when the page is hidden.
  */
-function useCarnetAutosave(carnet: CarnetData) {
+function useCarnetAutosave(carnetId: string, carnet: CarnetData) {
   const [saveError, setSaveError] = useState(false);
   const pendingRef = useRef<CarnetData | null>(null);
   const writingRef = useRef(false);
@@ -77,7 +101,7 @@ function useCarnetAutosave(carnet: CarnetData) {
         const data = pendingRef.current;
         pendingRef.current = null;
         try {
-          await saveCarnet(data);
+          await saveCarnet(carnetId, data);
           setSaveError(false);
         } catch (err) {
           console.error('Enregistrement du carnet impossible :', err);
@@ -87,7 +111,7 @@ function useCarnetAutosave(carnet: CarnetData) {
     } finally {
       writingRef.current = false;
     }
-  }, []);
+  }, [carnetId]);
 
   useEffect(() => {
     // The carnet that was just loaded does not need saving again.
@@ -112,15 +136,32 @@ function useCarnetAutosave(carnet: CarnetData) {
     return () => {
       window.removeEventListener('pagehide', onHide);
       document.removeEventListener('visibilitychange', onVisibility);
+      // Leaving this carnet (switching to another one): save what is pending.
+      if (pendingRef.current) void flush();
     };
   }, [flush]);
 
-  return saveError;
+  /** Saves immediately; resolves once everything pending is written. */
+  const flushNow = useCallback(async () => {
+    await flush();
+    while (writingRef.current) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }, [flush]);
+
+  return { saveError, flushNow };
 }
 
-function CarnetApp({ initialCarnet }: { initialCarnet: CarnetData }) {
+interface CarnetAppProps {
+  carnetId: string;
+  initialCarnet: CarnetData;
+  onSwitchCarnet: (id: string) => Promise<void>;
+  switchError: string | null;
+}
+
+function CarnetApp({ carnetId, initialCarnet, onSwitchCarnet, switchError }: CarnetAppProps) {
   const [carnet, setCarnet] = useState<CarnetData>(initialCarnet);
-  const saveError = useCarnetAutosave(carnet);
+  const { saveError, flushNow } = useCarnetAutosave(carnetId, carnet);
   const [activeTab, setActiveTab] = useState<AppTab>('sommaire');
   const [selectedFicheNum, setSelectedFicheNum] = useState<number>(1);
   const [importMessage, setImportMessage] = useState<{
@@ -145,6 +186,13 @@ function CarnetApp({ initialCarnet }: { initialCarnet: CarnetData }) {
   const handleSelectTab = (tab: AppTab) => {
     setActiveTab(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  /** Saves the open carnet, then opens another one. */
+  const handleSwitchCarnet = async (id: string) => {
+    if (id === carnetId) return;
+    await flushNow();
+    await onSwitchCarnet(id);
   };
 
   const handleUpdateProfile = (profile: CarnetProfile) => {
@@ -276,6 +324,9 @@ function CarnetApp({ initialCarnet }: { initialCarnet: CarnetData }) {
             onExportJson={handleExportJson}
             onImportJson={handleImportJson}
             importMessage={importMessage}
+            onOpenCarnets={() => handleSelectTab('carnets')}
+            onOpenBilan={() => handleSelectTab('bilan')}
+            onOpenExport={() => handleSelectTab('export')}
           />
         )}
 
@@ -313,6 +364,22 @@ function CarnetApp({ initialCarnet }: { initialCarnet: CarnetData }) {
             onOpenFiche={handleOpenFiche}
           />
         )}
+
+        {activeTab === 'bilan' && <BilanView carnet={carnet} onOpenFiche={handleOpenFiche} />}
+
+        {activeTab === 'export' && <ExportView carnet={carnet} />}
+
+        {activeTab === 'carnets' && (
+          <CarnetsView
+            carnetId={carnetId}
+            carnet={carnet}
+            onOpenCarnet={handleSwitchCarnet}
+            onRenameCurrent={(titre) =>
+              setCarnet((prev) => ({ ...prev, profile: { ...prev.profile, titreCarnet: titre } }))
+            }
+            switchError={switchError}
+          />
+        )}
       </main>
 
       <footer className="no-print border-t border-[#DFDDD4] bg-[#FAF9F6] mt-12">
@@ -323,7 +390,7 @@ function CarnetApp({ initialCarnet }: { initialCarnet: CarnetData }) {
             </span>{' '}
             · 50 fiches doubles &amp; check-liste de départ
           </p>
-          <div className="flex items-center gap-5">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
             <button
               type="button"
               onClick={() => handleSelectTab('sommaire')}
@@ -351,6 +418,20 @@ function CarnetApp({ initialCarnet }: { initialCarnet: CarnetData }) {
               className="hover:text-[#1C1F22] transition-colors cursor-pointer"
             >
               Check-list
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectTab('carnets')}
+              className="hover:text-[#1C1F22] transition-colors cursor-pointer"
+            >
+              Mes carnets
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectTab('export')}
+              className="hover:text-[#1C1F22] transition-colors cursor-pointer"
+            >
+              Export PDF
             </button>
             <button
               type="button"

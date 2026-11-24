@@ -19,12 +19,14 @@ import {
   FicheDouble,
   MeteoType,
   NouvellePersonne,
+  PhotoFiche,
   RevenirChoix,
   ServicesAire,
   TypeEtape,
   VisiteEffectuee,
 } from '../types/carnet';
 import {
+  MAX_PHOTOS_PAR_FICHE,
   METEO_LABELS,
   SERVICE_LABELS,
   TYPE_ETAPE_LABELS,
@@ -139,18 +141,62 @@ export function FicheDoubleView({
     );
   };
 
+  /** Updates the photo list and keeps photoUrl/photoLegende on the main photo. */
+  const setPhotos = (photos: PhotoFiche[]) => {
+    patch({
+      photos,
+      photoUrl: photos[0]?.url ?? '',
+      photoLegende: photos[0]?.legende ?? '',
+    });
+  };
+
   const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     setPhotoError(null);
-    try {
-      const dataUrl = await compressImageFile(file);
-      patch({ photoUrl: dataUrl });
-    } catch {
-      setPhotoError('Impossible de charger cette image. Choisissez un fichier JPG ou PNG.');
-    } finally {
+    const place = MAX_PHOTOS_PAR_FICHE - fiche.photos.length;
+    if (place <= 0) {
+      setPhotoError(`Maximum ${MAX_PHOTOS_PAR_FICHE} photos par fiche.`);
       e.target.value = '';
+      return;
     }
+    const added: PhotoFiche[] = [];
+    let failed = 0;
+    for (const file of files.slice(0, place)) {
+      try {
+        const url = await compressImageFile(file);
+        added.push({
+          id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          url,
+          legende: '',
+        });
+      } catch {
+        failed += 1;
+      }
+    }
+    if (added.length > 0) setPhotos([...fiche.photos, ...added]);
+    if (failed > 0) {
+      setPhotoError('Certaines images n’ont pas pu être chargées. Choisissez des fichiers JPG ou PNG.');
+    } else if (files.length > place) {
+      setPhotoError(
+        `Seules ${place} photo${place > 1 ? 's ont été ajoutées' : ' a été ajoutée'} : maximum ${MAX_PHOTOS_PAR_FICHE} par fiche.`
+      );
+    }
+    e.target.value = '';
+  };
+
+  const handleRemovePhoto = (id: string) => {
+    setPhotos(fiche.photos.filter((p) => p.id !== id));
+  };
+
+  const handleMakeMainPhoto = (id: string) => {
+    const photo = fiche.photos.find((p) => p.id === id);
+    if (!photo) return;
+    setPhotos([photo, ...fiche.photos.filter((p) => p.id !== id)]);
+  };
+
+  const handlePhotoCaption = (id: string, legende: string) => {
+    setPhotos(fiche.photos.map((p) => (p.id === id ? { ...p, legende } : p)));
   };
 
   const handleAddVisit = (e: FormEvent) => {
@@ -657,33 +703,32 @@ export function FicheDoubleView({
             />
           </div>
 
-          {/* Photo Souvenir */}
+          {/* Photos souvenirs */}
           <div className="space-y-3 pt-2 border-t border-[#EAE8E0]">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-[#4E545A]">Photo souvenir de l’étape</p>
-              <div className="no-print flex items-center gap-3">
+              <p className="text-xs font-medium text-[#4E545A]">
+                Photos souvenirs de l’étape
+                {fiche.photos.length > 0 && (
+                  <span className="ml-1.5 font-mono text-[#82888E] tabular-nums">
+                    {fiche.photos.length} / {MAX_PHOTOS_PAR_FICHE}
+                  </span>
+                )}
+              </p>
+              {fiche.photos.length > 0 && fiche.photos.length < MAX_PHOTOS_PAR_FICHE && (
                 <button
                   type="button"
                   onClick={() => photoInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1E4D3B] hover:underline cursor-pointer"
+                  className="no-print inline-flex items-center gap-1.5 text-xs font-medium text-[#1E4D3B] hover:underline cursor-pointer"
                 >
                   <Camera className="w-3.5 h-3.5" />
-                  {fiche.photoUrl ? 'Changer la photo' : 'Ajouter une photo'}
+                  Ajouter des photos
                 </button>
-                {fiche.photoUrl && (
-                  <button
-                    type="button"
-                    onClick={() => patch({ photoUrl: '', photoLegende: '' })}
-                    className="text-xs text-[#6E747A] hover:text-red-700 cursor-pointer"
-                  >
-                    Retirer
-                  </button>
-                )}
-              </div>
+              )}
               <input
                 ref={photoInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 onChange={handlePhotoUpload}
                 className="hidden"
               />
@@ -691,22 +736,57 @@ export function FicheDoubleView({
 
             {photoError && <p className="text-xs text-red-700">{photoError}</p>}
 
-            {fiche.photoUrl ? (
-              <div className="space-y-2">
-                <div className="aspect-[4/3] rounded-lg overflow-hidden border border-[#DCD9D0]">
-                  <ResilientImage
-                    src={fiche.photoUrl}
-                    alt={fiche.photoLegende || fiche.nomAire || `Photo de la fiche ${numLabel}`}
-                    fallbackTitle={fiche.nomAire || `Étape ${numLabel}`}
-                  />
-                </div>
-                <input
-                  type="text"
-                  value={fiche.photoLegende}
-                  onChange={(e) => patch({ photoLegende: e.target.value })}
-                  placeholder="Ajouter une légende à cette photo..."
-                  className="w-full px-2.5 py-1.5 text-xs italic bg-transparent border-b border-[#E5E3DA] text-[#4E545A] placeholder:text-[#9AA0A6] focus:outline-none focus:border-[#1E4D3B]"
-                />
+            {fiche.photos.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {fiche.photos.map((photo, index) => (
+                  <figure
+                    key={photo.id}
+                    className={`space-y-1.5 ${index === 0 ? 'col-span-2' : ''}`}
+                  >
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-[#DCD9D0]">
+                      <ResilientImage
+                        src={photo.url}
+                        alt={photo.legende || fiche.nomAire || `Photo de la fiche ${numLabel}`}
+                        fallbackTitle={fiche.nomAire || `Étape ${numLabel}`}
+                      />
+                      {index === 0 && fiche.photos.length > 1 && (
+                        <span className="absolute left-2 top-2 px-2 py-0.5 rounded bg-[#1C1F22]/75 text-[10px] font-medium text-white">
+                          Photo principale
+                        </span>
+                      )}
+                      <div className="no-print absolute right-2 top-2 flex gap-1.5">
+                        {index > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleMakeMainPhoto(photo.id)}
+                            aria-label="Choisir comme photo principale"
+                            title="Choisir comme photo principale"
+                            className="w-8 h-8 inline-flex items-center justify-center rounded-full bg-white/90 text-[#1C1F22] hover:bg-white shadow-sm cursor-pointer"
+                          >
+                            <Star className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(photo.id)}
+                          aria-label="Retirer cette photo"
+                          title="Retirer cette photo"
+                          className="w-8 h-8 inline-flex items-center justify-center rounded-full bg-white/90 text-[#1C1F22] hover:bg-white hover:text-red-700 shadow-sm cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      value={photo.legende}
+                      onChange={(e) => handlePhotoCaption(photo.id, e.target.value)}
+                      placeholder="Légende..."
+                      aria-label={`Légende de la photo ${index + 1}`}
+                      className="w-full px-2 py-1 text-xs italic bg-transparent border-b border-[#E5E3DA] text-[#4E545A] placeholder:text-[#9AA0A6] focus:outline-none focus:border-[#1E4D3B]"
+                    />
+                  </figure>
+                ))}
               </div>
             ) : (
               <button
@@ -716,10 +796,11 @@ export function FicheDoubleView({
               >
                 <Camera className="w-5 h-5 text-[#7A8086] mx-auto mb-1.5" strokeWidth={1.5} />
                 <p className="text-xs font-medium text-[#4E545A]">
-                  Glissez ou cliquez pour coller une photo de l’aire
+                  Ajouter des photos de l’étape (jusqu’à {MAX_PHOTOS_PAR_FICHE})
                 </p>
                 <p className="text-[11px] text-[#82888E] mt-0.5">
-                  Redimensionnée automatiquement pour être conservée dans votre carnet
+                  Vous pouvez en choisir plusieurs à la fois ; elles sont redimensionnées
+                  automatiquement
                 </p>
               </button>
             )}

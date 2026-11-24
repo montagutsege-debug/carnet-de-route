@@ -43,9 +43,41 @@
 
 /* Clean print layout for printing an individual double-page fiche or checklist */
 @media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
   body {
     background: #ffffff !important;
     color: #111111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #root > div {
+    background: #ffffff !important;
+  }
+  /* Full carnet export: one sheet per section, no screen decoration */
+  .carnet-print {
+    display: block !important;
+  }
+  .carnet-print > * + * {
+    margin-top: 0 !important;
+  }
+  .print-page {
+    break-after: page;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+  .print-page:last-child {
+    break-after: auto;
+  }
+  main,
+  main > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
   }
   .no-print {
     display: none !important;

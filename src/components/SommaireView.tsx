@@ -1,7 +1,10 @@
 import { ChangeEvent, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  BarChart3,
+  BookOpen,
   Download,
+  FileDown,
   Heart,
   Pencil,
   Search,
@@ -27,6 +30,9 @@ interface SommaireViewProps {
   onExportJson: () => void;
   onImportJson: (file: File) => void;
   importMessage: { type: 'success' | 'error'; text: string } | null;
+  onOpenCarnets: () => void;
+  onOpenBilan: () => void;
+  onOpenExport: () => void;
 }
 
 type FilterMode = 'toutes' | 'completees' | 'vierges' | 'favoris';
@@ -40,6 +46,9 @@ export function SommaireView({
   onExportJson,
   onImportJson,
   importMessage,
+  onOpenCarnets,
+  onOpenBilan,
+  onOpenExport,
 }: SommaireViewProps) {
   const [filter, setFilter] = useState<FilterMode>('toutes');
   const [searchQuery, setSearchQuery] = useState('');
@@ -155,17 +164,27 @@ export function SommaireView({
                       {carnet.profile.saison}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraftProfile(carnet.profile);
-                      setEditingProfile(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1E4D3B] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Personnaliser la couverture
-                  </button>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftProfile(carnet.profile);
+                        setEditingProfile(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1E4D3B] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Personnaliser la couverture
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onOpenCarnets}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1E4D3B] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Changer de carnet
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3 bg-[#F3F2ED] p-4 rounded-lg border border-[#E2E0D8]">
@@ -318,6 +337,30 @@ export function SommaireView({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={onOpenBilan}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#3A3F45] bg-[#FAF9F6] border border-[#DCD9D0] hover:border-[#1C1F22] rounded-md transition-colors whitespace-nowrap cursor-pointer"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              Bilan
+            </button>
+            <button
+              type="button"
+              onClick={onOpenExport}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#3A3F45] bg-[#FAF9F6] border border-[#DCD9D0] hover:border-[#1C1F22] rounded-md transition-colors whitespace-nowrap cursor-pointer"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              Exporter en PDF
+            </button>
+            <button
+              type="button"
+              onClick={onOpenCarnets}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#3A3F45] bg-[#FAF9F6] border border-[#DCD9D0] hover:border-[#1C1F22] rounded-md transition-colors whitespace-nowrap cursor-pointer"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              Mes carnets
+            </button>
             <button
               type="button"
               onClick={onExportJson}

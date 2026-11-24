@@ -2,6 +2,11 @@
 
 Carnet de voyage à compléter : 50 fiches doubles (aire de camping et étape à gauche, visites et rencontres à droite), carte des étapes, check-liste de départ et répertoire des rencontres.
 
+- Plusieurs carnets (un par voyage), jusqu'à 8 photos par fiche.
+- Bilan du voyage : nuits, kilomètres, budget, types d'étapes, régions.
+- Export PDF du carnet complet (couverture, bilan, une page par fiche).
+- Installable sur iPhone, iPad et Android, utilisable hors connexion.
+
 Stack : React 19, Vite 8, Tailwind CSS 4, Leaflet, serveur Express (`server.ts`).
 
 ## Sur Mac (iMac, MacBook)
