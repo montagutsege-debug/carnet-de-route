@@ -27,7 +27,7 @@ Le dossier `mac/` contient une vraie application Mac « Carnet de Route » (macO
 
 À savoir :
 - Le carnet de l'application Mac est séparé de celui du navigateur. Pour y reprendre vos fiches : **Sauvegarder (.json)** dans le navigateur, puis **Restaurer** dans l'application Mac.
-- Suggestions « aux alentours » : indiquez l'adresse de votre appli en ligne (Vercel) dans `mac/CarnetDeRoute/AppConfig.swift`, puis relancez avec ▶︎.
+- Suggestions « aux alentours » : au premier clic, l'application demande votre clé Gemini et la garde dans le trousseau du Mac (menu **Carnet de Route → Clé Gemini…** pour la changer). Gemini est interrogé directement, sans serveur.
 - Après une modification de l'appli web, mettez à jour la copie embarquée avec `npm run build:mac`, puis ▶︎ dans Xcode.
 
 ## Lancer en local (ligne de commande)

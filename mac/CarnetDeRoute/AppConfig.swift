@@ -2,8 +2,9 @@ import Foundation
 
 /// Réglages de l'application Mac.
 enum AppConfig {
-    /// Adresse de votre appli en ligne sur Vercel, pour les suggestions « aux alentours »
-    /// (Gemini). Exemple : "https://carnet-de-route-xxx.vercel.app".
-    /// Laissez vide si l'appli n'est pas en ligne : tout le reste fonctionne sans.
+    /// Facultatif. Laissez vide : l'application demande alors votre clé Gemini au premier
+    /// usage des suggestions et interroge Gemini directement (clé gardée dans le trousseau).
+    /// Si vous mettez votre appli en ligne sur Vercel, vous pouvez indiquer son adresse ici
+    /// (ex. "https://carnet-de-route-xxx.vercel.app") pour passer par elle à la place.
     static let suggestionsServer = ""
 }

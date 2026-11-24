@@ -66,6 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return false
     }
 
+    // MARK: - Menu « Carnet de Route »
+
+    @objc func editGeminiKey(_ sender: Any?) {
+        web.askForGeminiKey()
+    }
+
     // MARK: - Menu Présentation (zoom)
 
     @objc func zoomInPage(_ sender: Any?) {

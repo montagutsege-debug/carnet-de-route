@@ -128,8 +128,86 @@ final class WebController: NSObject {
     }
 
     private static func jsonError(_ message: String) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: ["error": message])) ?? Data()
+        json(["error": message])
+    }
+
+    private static func json(_ object: [String: Any]) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
         return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    // MARK: - Gemini directly from the Mac
+
+    private func suggestionsFromGemini(bodyText: String?, replyHandler: @escaping (Any?, String?) -> Void) {
+        let input = bodyText
+            .flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] } ?? [:]
+
+        let run: (String) -> Void = { key in
+            GeminiClient.suggestions(input: input, apiKey: key) { reply in
+                DispatchQueue.main.async {
+                    if reply.status == 403 {
+                        GeminiKeyStore.delete() // refused key: ask again next time
+                    }
+                    replyHandler(["status": reply.status, "body": Self.json(reply.body)], nil)
+                }
+            }
+        }
+
+        if let key = GeminiKeyStore.load() {
+            run(key)
+            return
+        }
+        askForGeminiKey { key in
+            if let key {
+                run(key)
+            } else {
+                replyHandler([
+                    "status": 503,
+                    "body": Self.jsonError("Aucune clé Gemini enregistrée : cliquez à nouveau sur le bouton pour la saisir."),
+                ], nil)
+            }
+        }
+    }
+
+    /// Fenêtre pour saisir (ou supprimer) la clé Gemini. Aussi dans le menu « Carnet de Route ».
+    func askForGeminiKey(completion: ((String?) -> Void)? = nil) {
+        guard let window = webView.window else {
+            completion?(nil)
+            return
+        }
+        let hasKey = GeminiKeyStore.load() != nil
+        let alert = NSAlert()
+        alert.messageText = "Clé Gemini"
+        alert.informativeText = hasKey
+            ? "Une clé est déjà enregistrée. Collez-en une nouvelle pour la remplacer."
+            : "Collez votre clé Gemini (elle commence par « AIza »). Elle sert aux suggestions « aux alentours » et reste enregistrée dans le trousseau de ce Mac."
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = "AIza…"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Enregistrer")
+        alert.addButton(withTitle: "Annuler")
+        if hasKey {
+            alert.addButton(withTitle: "Supprimer la clé")
+        }
+        alert.window.initialFirstResponder = field
+
+        alert.beginSheetModal(for: window) { response in
+            switch response {
+            case .alertFirstButtonReturn:
+                let key = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !key.isEmpty else {
+                    completion?(nil)
+                    return
+                }
+                GeminiKeyStore.save(key)
+                completion?(key)
+            case .alertThirdButtonReturn:
+                GeminiKeyStore.delete()
+                completion?(nil)
+            default:
+                completion?(nil)
+            }
+        }
     }
 }
 
@@ -180,11 +258,12 @@ extension WebController: WKScriptMessageHandler, WKScriptMessageHandlerWithReply
         }
 
         let server = AppConfig.suggestionsServer.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !server.isEmpty, let url = URL(string: server.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + path) else {
-            replyHandler([
-                "status": 503,
-                "body": Self.jsonError("Les suggestions ne sont pas encore activées dans l’application Mac : indiquez l’adresse de votre appli en ligne dans AppConfig.swift."),
-            ], nil)
+        if server.isEmpty {
+            suggestionsFromGemini(bodyText: body["body"] as? String, replyHandler: replyHandler)
+            return
+        }
+        guard let url = URL(string: server.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + path) else {
+            replyHandler(["status": 503, "body": Self.jsonError("Adresse du serveur invalide dans AppConfig.swift.")], nil)
             return
         }
 

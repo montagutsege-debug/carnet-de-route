@@ -12,6 +12,10 @@ enum MainMenu {
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Clé Gemini…",
+                        action: #selector(AppDelegate.editGeminiKey(_:)),
+                        keyEquivalent: ",")
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Masquer \(appName)",
                         action: #selector(NSApplication.hide(_:)),
                         keyEquivalent: "h")
