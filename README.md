@@ -17,6 +17,19 @@ Stack : React 19, Vite 8, Tailwind CSS 4, Leaflet, serveur Express (`server.ts`)
    La première fois, macOS peut le bloquer : faites clic droit → **Ouvrir** → **Ouvrir**.
 4. L'application s'ouvre dans votre navigateur. Gardez la fenêtre du Terminal ouverte pendant l'utilisation.
 
+## Application Mac (Xcode)
+
+Le dossier `mac/` contient une vraie application Mac « Carnet de Route » (macOS 13 ou plus récent).
+
+1. Ouvrez `mac/CarnetDeRoute.xcodeproj` (double-clic) : Xcode s'ouvre.
+2. Cliquez sur ▶︎ (ou Cmd+R). L'application se construit et s'ouvre. Aucun compte Apple payant n'est nécessaire.
+3. Pour la garder : dans Xcode, panneau de gauche, dossier **Products**, clic droit sur **Carnet de Route.app** → **Show in Finder**, puis glissez l'app dans **Applications**.
+
+À savoir :
+- Le carnet de l'application Mac est séparé de celui du navigateur. Pour y reprendre vos fiches : **Sauvegarder (.json)** dans le navigateur, puis **Restaurer** dans l'application Mac.
+- Suggestions « aux alentours » : indiquez l'adresse de votre appli en ligne (Vercel) dans `mac/CarnetDeRoute/AppConfig.swift`, puis relancez avec ▶︎.
+- Après une modification de l'appli web, mettez à jour la copie embarquée avec `npm run build:mac`, puis ▶︎ dans Xcode.
+
 ## Lancer en local (ligne de commande)
 
 Prérequis : Node.js 20 ou plus.

@@ -162,6 +162,15 @@ interface CarnetAppProps {
 function CarnetApp({ carnetId, initialCarnet, onSwitchCarnet, switchError }: CarnetAppProps) {
   const [carnet, setCarnet] = useState<CarnetData>(initialCarnet);
   const { saveError, flushNow } = useCarnetAutosave(carnetId, carnet);
+
+  // Lets the Mac app (Xcode version) save pending changes before its window closes.
+  useEffect(() => {
+    const w = window as unknown as { __carnetFlush?: () => Promise<void> };
+    w.__carnetFlush = flushNow;
+    return () => {
+      if (w.__carnetFlush === flushNow) delete w.__carnetFlush;
+    };
+  }, [flushNow]);
   const [activeTab, setActiveTab] = useState<AppTab>('sommaire');
   const [selectedFicheNum, setSelectedFicheNum] = useState<number>(1);
   const [importMessage, setImportMessage] = useState<{
