@@ -6,6 +6,7 @@ import WebKit
 /// ouvrir les liens dans Safari, appeler le serveur des suggestions.
 final class WebController: NSObject {
     let webView: WKWebView
+    private let location = LocationProvider()
 
     override init() {
         let configuration = WKWebViewConfiguration()
@@ -23,6 +24,7 @@ final class WebController: NSObject {
 
         content.add(self, name: "carnetPrint")
         content.addScriptMessageHandler(self, contentWorld: .page, name: "carnetApi")
+        content.addScriptMessageHandler(self, contentWorld: .page, name: "carnetLocation")
 
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -80,6 +82,27 @@ final class WebController: NSObject {
         }
         return nativeFetch(input, init);
       };
+
+      // Bouton « cible » : position fournie par le service de localisation de macOS.
+      var geo = navigator.geolocation;
+      if (!geo) {
+        geo = {};
+        try { Object.defineProperty(navigator, 'geolocation', { value: geo, configurable: true }); } catch (e) {}
+      }
+      geo.getCurrentPosition = function (success, error) {
+        window.webkit.messageHandlers.carnetLocation.postMessage(null).then(function (r) {
+          if (r && r.ok) {
+            success({
+              coords: { latitude: r.latitude, longitude: r.longitude, accuracy: r.accuracy,
+                        altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+              timestamp: Date.now()
+            });
+          } else if (error) {
+            error({ code: (r && r.code) || 2, message: (r && r.message) || '',
+                    PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 });
+          }
+        });
+      };
     })();
     """
 
@@ -121,9 +144,33 @@ extension WebController: WKScriptMessageHandler, WKScriptMessageHandlerWithReply
     }
 
     /// Suggestions « aux alentours » : relayées vers l'appli en ligne (Vercel).
+    /// Position GPS : service de localisation de macOS.
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
+        if message.name == "carnetLocation" {
+            location.requestLocation { result in
+                switch result {
+                case .success(let place):
+                    replyHandler([
+                        "ok": true,
+                        "latitude": place.coordinate.latitude,
+                        "longitude": place.coordinate.longitude,
+                        "accuracy": place.horizontalAccuracy,
+                    ], nil)
+                case .failure(let error):
+                    let code: Int
+                    switch error {
+                    case LocationProvider.Failure.denied: code = 1
+                    case LocationProvider.Failure.timeout: code = 3
+                    default: code = 2
+                    }
+                    replyHandler(["ok": false, "code": code, "message": error.localizedDescription], nil)
+                }
+            }
+            return
+        }
+
         guard message.name == "carnetApi",
               let body = message.body as? [String: Any],
               let path = body["path"] as? String

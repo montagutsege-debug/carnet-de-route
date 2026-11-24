@@ -130,7 +130,9 @@ export function FicheDoubleView({
       (error) => {
         setLocatingGps(false);
         if (error.code === error.PERMISSION_DENIED) {
-          setGpsError('Autorisation refusée. Activez la localisation dans votre navigateur.');
+          setGpsError(
+            'Autorisation refusée. Autorisez la localisation dans votre navigateur, ou sur Mac dans Réglages Système › Confidentialité et sécurité › Service de localisation.'
+          );
         } else if (error.code === error.TIMEOUT) {
           setGpsError('Délai dépassé pour obtenir la position GPS.');
         } else {
