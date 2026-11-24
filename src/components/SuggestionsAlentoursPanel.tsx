@@ -42,6 +42,12 @@ export function SuggestionsAlentoursPanel({
 
   const handleFetchSuggestions = async () => {
     if (!parsedPoint) return;
+    const offlineMessage =
+      'Pas de connexion Internet : les suggestions seront disponibles dès que vous aurez du réseau. Le reste du carnet fonctionne hors connexion.';
+    if (!navigator.onLine) {
+      setError(offlineMessage);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -80,7 +86,9 @@ export function SuggestionsAlentoursPanel({
       });
     } catch (err) {
       setError(
-        err instanceof Error
+        err instanceof TypeError
+          ? offlineMessage
+          : err instanceof Error
           ? err.message
           : 'Impossible de charger les suggestions pour le moment.'
       );
