@@ -32,7 +32,7 @@ export function Header({
 
   return (
     <header className="no-print sticky top-0 z-30 bg-[#FAF9F6]/95 backdrop-blur-sm border-b border-[#E2E0D8]">
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-8">
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 lg:gap-8">
         {/* Zone 1: Brand wordmark — single text element */}
         <button
           type="button"
@@ -45,7 +45,7 @@ export function Header({
         {/* Zone 2: 4 clean single-line text navigation links */}
         <nav
           aria-label="Navigation principale"
-          className="hidden md:flex items-center gap-7 text-sm font-medium"
+          className="hidden md:flex items-center gap-4 lg:gap-7 text-sm font-medium"
         >
           {NAV_ITEMS.map((item) => {
             const isActive = activeTab === item.id;
@@ -80,7 +80,7 @@ export function Header({
               onOpenNextBlankFiche();
               setMobileMenuOpen(false);
             }}
-            className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-[#1E4D3B] hover:bg-[#173D2F] rounded-md transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E4D3B]"
+            className="hidden sm:inline-flex items-center justify-center px-3 lg:px-4 py-2 text-sm font-medium text-white bg-[#1E4D3B] hover:bg-[#173D2F] rounded-md transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E4D3B]"
           >
             Nouvelle étape
           </button>
